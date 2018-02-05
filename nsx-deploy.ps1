@@ -5,7 +5,7 @@ param(
 	[switch]$configureNSX,
 	[switch]$deployControllers
 )
-Get-Module -ListAvailable VMware*,PowerNSX | Import-Module
+Get-Module -ListAvailable VMware.PowerCLI,PowerNSX | Import-Module
 if ( !(Get-Module -Name VMware.VimAutomation.Core -ErrorAction SilentlyContinue) ) {
 	throw "PowerCLI must be installed"
 }
@@ -93,30 +93,32 @@ function Get-VMFolder {
 Write-Log "#### Validating Configuration ####"
 Write-Log "### Validating Management"
 $mgmtVCSA = Get-VCSAConnection -vcsaName $NSXConfig.vcenter.management.server -vcsaUser $NSXConfig.vcenter.management.user -vcsaPassword $NSXConfig.vcenter.management.password -ErrorAction SilentlyContinue
-if($mgmtVCSA) { Write-Log "Management VCSA: OK" -Info } else { Write-Log "Management VCSA: Failed" -Warning; $preflightFailure = $true }
+if($mgmtVCSA) { Write-Log "Management VCSA: OK" } else { Write-Log "Management VCSA: Failed" -Warning; $preflightFailure = $true }
 $mgmtCluster = Get-Cluster -Name $NSXConfig.vcenter.management.cluster -Server $mgmtVCSA -ErrorAction SilentlyContinue
-if($mgmtCluster) { Write-Log "Management Cluster: OK" -Info } else { Write-Log "Management Cluster: Failed" -Warning; $preflightFailure = $true }
+if($mgmtCluster) { Write-Log "Management Cluster: OK" } else { Write-Log "Management Cluster: Failed" -Warning; $preflightFailure = $true }
 $mgmtDatastore = Get-Datastore -Name $NSXConfig.vcenter.management.datastore -Server $mgmtVCSA -ErrorAction SilentlyContinue
-if($mgmtDatastore) { Write-Log "Management Datastore: OK" -Info } else { Write-Log "Management Datastore: Failed" -Warning; $preflightFailure = $true }
+if($mgmtDatastore) { Write-Log "Management Datastore: OK" } else { Write-Log "Management Datastore: Failed" -Warning; $preflightFailure = $true }
 $mgmtPortgroup = Get-VDPortgroup -Name $NSXConfig.vcenter.management.portgroup -Server $mgmtVCSA -ErrorAction SilentlyContinue
-if($mgmtPortgroup) { Write-Log "Management Portgroup: OK" -Info } else { Write-Log "Management Portgroup: Failed" -Warning; $preflightFailure = $true }
+if($mgmtPortgroup) { Write-Log "Management Portgroup: OK" } else { Write-Log "Management Portgroup: Failed" -Warning; $preflightFailure = $true }
 $mgmtFolder = Get-VMFolder -vcsaConnection $mgmtVCSA -folderPath $NSXConfig.vcenter.management.folder -ErrorAction SilentlyContinue
-if($mgmtFolder) { Write-Log "Management Folder: OK" -Info } else { Write-Log "Management Folder: Failed" -Warning; $preflightFailure = $true }
+if($mgmtFolder) { Write-Log "Management Folder: OK" } else { Write-Log "Management Folder: Failed" -Warning; $preflightFailure = $true }
 $mgmtHost = $mgmtCluster | Get-VMHost -Server $mgmtVCSA  -ErrorAction SilentlyContinue | where { $_.ConnectionState -eq "Connected" } | Get-Random
-if($mgmtHost) { Write-Log "Management Host: OK" -Info } else { Write-Log "Management Host: Failed" -Warning; $preflightFailure = $true }
+if($mgmtHost) { Write-Log "Management Host: OK" } else { Write-Log "Management Host: Failed" -Warning; $preflightFailure = $true }
 Write-Log "### Validating Resource"
 $resVCSA = Get-VCSAConnection -vcsaName $NSXConfig.vcenter.resource.server -vcsaUser $NSXConfig.vcenter.resource.user -vcsaPassword $NSXConfig.vcenter.resource.password -ErrorAction SilentlyContinue
-if($resVCSA) { Write-Log "Resource VCSA: OK" -Info } else { Write-Log "Resource VCSA: Failed" -Warning; $preflightFailure = $true }
+if($resVCSA) { Write-Log "Resource VCSA: OK" } else { Write-Log "Resource VCSA: Failed" -Warning; $preflightFailure = $true }
 $resCluster = Get-Cluster -Name $NSXConfig.vcenter.resource.cluster -Server $resVCSA -ErrorAction SilentlyContinue
-if($resCluster) { Write-Log "Resource Cluster: OK" -Info } else { Write-Log "Resource Cluster: Failed" -Warning; $preflightFailure = $true }
+if($resCluster) { Write-Log "Resource Cluster: OK" } else { Write-Log "Resource Cluster: Failed" -Warning; $preflightFailure = $true }
 $resDatastore = Get-Datastore -Name $NSXConfig.vcenter.resource.datastore -Server $resVCSA -ErrorAction SilentlyContinue
-if($resDatastore) { Write-Log "Resource Datastore: OK" -Info } else { Write-Log "Resource Datastore: Failed" -Warning; $preflightFailure = $true }
+if($resDatastore) { Write-Log "Resource Datastore: OK" } else { Write-Log "Resource Datastore: Failed" -Warning; $preflightFailure = $true }
+$resDistributedSwitch = Get-VDSwitch -Name $NSXConfig.vcenter.resource.vds -Server $resVCSA -ErrorAction SilentlyContinue
+if($resDistributedSwitch) { Write-Log "Resource Distributed Switch: OK" } else { Write-Log "Resource Distributed Switch: Failed" -Warning; $preflightFailure = $true }
 $resControllerPortgroup = Get-VDPortgroup -Name $NSXConfig.vcenter.resource.controllerportgroup -Server $resVCSA -ErrorAction SilentlyContinue
-if($resControllerPortgroup) { Write-Log "Resource Controller Portgroup: OK" -Info } else { Write-Log "Resource Portgroup: Failed" -Warning; $preflightFailure = $true }
+if($resControllerPortgroup) { Write-Log "Resource Controller Portgroup: OK" } else { Write-Log "Resource Portgroup: Failed" -Warning; $preflightFailure = $true }
 $resFolder = Get-VMFolder -vcsaConnection $resVCSA -folderPath $NSXConfig.vcenter.resource.folder -ErrorAction SilentlyContinue
-if($resFolder) { Write-Log "Resource Folder: OK" -Info } else { Write-Log "Resource Folder: Failed" -Warning; $preflightFailure = $true }
+if($resFolder) { Write-Log "Resource Folder: OK" } else { Write-Log "Resource Folder: Failed" -Warning; $preflightFailure = $true }
 $resHost = $resCluster | Get-VMHost -Server $resVCSA  -ErrorAction SilentlyContinue | where { $_.ConnectionState -eq "Connected" } | Get-Random
-if($resHost) { Write-Log "Resource Host: OK" -Info } else { Write-Log "Resource Host: Failed" -Warning; $preflightFailure = $true }
+if($resHost) { Write-Log "Resource Host: OK" } else { Write-Log "Resource Host: Failed" -Warning; $preflightFailure = $true }
 
 
 if($preflightFailure) {
@@ -174,62 +176,62 @@ if($configureNSX) {
 	$ServiceInstance = Get-View ServiceInstance -Server $resVCSA
 	$LicenseManager = Get-View $ServiceInstance.Content.licenseManager
 	$LicenseAssignmentManager = Get-View $LicenseManager.licenseAssignmentManager
-	$LicenseAssignmentManager.UpdateAssignedLicense("nsx-netsec",$NSXConfig.license,$NULL)
+	$LicenseAssignmentManager.UpdateAssignedLicense("nsx-netsec",$NSXConfig.license,$NULL) | Out-Null
 
 	Write-Log "## Connect NSX Manager to vCenter ##"
-	Connect-NSXServer $NSXConfig.nsx.manager.network.ip -Username "admin" -Password $NSXConfig.nsx.manager.adminpass |  Out-File -Append -LiteralPath $verboseLogFile
+	Connect-NSXServer -NsxServer $NSXConfig.nsx.manager.network.ip -Username "admin" -Password $NSXConfig.nsx.manager.adminpass |  Out-File -Append -LiteralPath $verboseLogFile
 	$NSXVC = Get-NsxManagerVcenterConfig
-	if($NSXVC.Connected -ne $true) {
-		Set-NsxManager -vcenterusername $NSXConfig.vcenter.resource.user -vcenterpassword $NSXConfig.vcenter.resource.password -vcenterserver $NSXConfig.vcenter.resource.server |  Out-File -Append -LiteralPath $verboseLogFile
-	} else {
+
+	if($NSXVC.Connected -eq $true) {
 		Write-Log "NSX Manager is already connected to vCenter" -Warning
+	} else {
+		Set-NsxManager -vcenterusername $NSXConfig.vcenter.resource.user -vcenterpassword $NSXConfig.vcenter.resource.password -vcenterserver $NSXConfig.vcenter.resource.server |  Out-File -Append -LiteralPath $verboseLogFile
 	}
 	$NSXSSO = Get-NsxManagerSsoConfig
 	if($NSXSSO.Connected -ne $true) {
-		Set-NsxManager -ssousername $NSXConfig.vcenter.resource.user -ssopassword $NSXConfig.nsx.manager.adminpass -ssoserver $NSXConfig.vcenter.resource.sso |  Out-File -Append -LiteralPath $verboseLogFile
+		Set-NsxManager -ssousername $NSXConfig.vcenter.resource.user -ssopassword $NSXConfig.nsx.manager.adminpass -ssoserver $NSXConfig.vcenter.resource.sso -SsoPort $NSXConfig.vcenter.resource.ssoport |  Out-File -Append -LiteralPath $verboseLogFile
 	} else {
 		Write-Log "NSX Manager is already connected to SSO" -Warning
 	}
 }
 if($deployControllers) {
-	Connect-NSXServer $NSXConfig.nsx.manager.network.ip -Username "admin" -Password $NSXConfig.nsx.manager.adminpass |  Out-File -Append -LiteralPath $verboseLogFile
+	$NSX = Connect-NSXServer -NsxServer $NSXConfig.nsx.manager.network.ip -Username "admin" -Password $NSXConfig.nsx.manager.adminpass -WarningAction SilentlyContinue
 
 	if((Get-NsxIpPool -Name $NSXConfig.nsx.controllers.pool.name) -eq $null) {
-		New-NsxIPPool -Name "Controllers" -Gateway $NSXConfig.nsx.manager.network.gateway -SubnetPrefixLength $NSXConfig.nsx.manager.network.prefix -StartAddress $NSXConfig.nsx.controller.startIp -EndAddress $NSXConfig.nsx.controller.endIp -DnsServer1 $NSXConfig.nsx.manager.network.dns -DnsSuffix $NSXConfig.nsx.manager.network.domain |  Out-File -Append -LiteralPath $verboseLogFile
+		New-NsxIPPool -Name $NSXConfig.nsx.controllers.pool.name -Gateway $NSXConfig.nsx.manager.network.gateway -SubnetPrefixLength $NSXConfig.nsx.manager.network.prefix -StartAddress $NSXConfig.nsx.controllers.pool.startIp -EndAddress $NSXConfig.nsx.controllers.pool.endIp -DnsServer1 $NSXConfig.nsx.manager.network.dns -DnsSuffix $NSXConfig.nsx.manager.network.domain |  Out-File -Append -LiteralPath $verboseLogFile
 	} else {
-		Write-Log "NSX IP Pool exists, skipping" -Warning
+		Write-Log "NSX Controller IP Pool exists, skipping" -Warning
 	}
-	if((Get-NSXController) -eq $null) {
-		$NSXPool = Get-NSXIPPool "Controllers"
-		$NSXPortGroup = Get-VDPortGroup -Name $NSXConfig.vcsa.portgroup -Server $nVCSA
-		$NSXDatastore = Get-Datastore -Name "vsanDatastore" -Server $nVCSA
-		Write-Log "Deploying NSX Controller"
-		$NSXController = New-NsxController -Cluster $nCluster -datastore $NSXDatastore -PortGroup $NSXPortGroup -IpPool $NSXPool -Password $NSXConfig.nsx.controller.password -Confirm:$false
-		do {
-			Sleep -Seconds 20
-			$ControllerStatus = (Get-NSXController -ObjectId $NSXController.id).status
-		} Until (($ControllerStatus -eq "RUNNING") -or ($ControllerStatus -eq $null))
-		if($ControllerStatus -eq $null) {
-			Write-Log "Controller deployment failed" -Warning
-		} else {
-			Write-Log "Controller deployed successfully"
-		}
+	$controllerCount = (Get-NSXController -connection $NSX | measure-object).count
+	$NSXPool = Get-NSXIPPool $NSXConfig.nsx.controllers.pool.name
+	if($controllerCount -eq $NSXConfig.nsx.controllers.quantity) {
+		Write-Log "NSX Controllers Exist, skipping" -Warning
 	} else {
-		Write-Log "NSX Controller Exists, skipping" -Warning
+		Write-Log "Deploying NSX Controllers"
+		while($controllerCount -lt $NSXConfig.nsx.controllers.quantity) {
+			$NSXController = New-NsxController -Cluster $resCluster -datastore $resDatastore -PortGroup $resControllerPortgroup -IpPool $NSXPool -Password $NSXConfig.nsx.controllers.password -Connection $NSX -Confirm:$false
+			do {
+				Sleep -Seconds 20
+				$ControllerStatus = (Get-NSXController -ObjectId $NSXController.id).status
+			} Until (($ControllerStatus -eq "RUNNING"))
+			Write-Log "Controller deployed successfully"
+			$controllerCount = (Get-NSXController -connection $NSX | measure-object).count
+		}
 	}
 }
 if($prepareHosts) {
 	Write-Log "## Preparing hosts ##"
-	$clusterStatus = ($nCluster | Get-NsxClusterStatus | select -first 1).installed
+	$clusterStatus = ($resCluster | Get-NsxClusterStatus | select -first 1).installed
 	if($clusterStatus -eq "false") {
 		Write-Log "Initiating installation of NSX agents"
-		$nCluster | Install-NsxCluster | Out-File -Append -LiteralPath $verboseLogFile
+		$resCluster | Install-NsxCluster | Out-File -Append -LiteralPath $verboseLogFile
 	} else {
 		Write-Log "Cluster is already installed" -Warning
 	}
 	Write-Log "Creating VTEP IP Pool"
-	if((Get-NsxIpPool -Name "VTEPs") -eq $null) {
-		New-NsxIPPool -Name "VTEPs" -Gateway $NSXConfig.nsx.manager.network.gateway -SubnetPrefixLength $NSXConfig.nsx.manager.network.prefix -StartAddress $NSXConfig.nsx.vtep.startIp -EndAddress $NSXConfig.nsx.vtep.endIp -DnsServer1 $NSXConfig.nsx.manager.network.dns -DnsSuffix $NSXConfig.nsx.manager.network.domain |  Out-File -Append -LiteralPath $verboseLogFile
+	$vtepPool = $NSXConfig.nsx.vxlan.pool
+	if((Get-NsxIpPool -Name $vtepPool.name) -eq $null) {
+		New-NsxIPPool -Name $vtepPool.name -Gateway $vtepPool.gateway -SubnetPrefixLength $vtepPool.prefix -StartAddress $vtepPool.startIp -EndAddress $vtepPool.endIp |  Out-File -Append -LiteralPath $verboseLogFile
 	} else {
 		Write-Log "VTEP IP Pool exists, skipping" -Warning
 	}
@@ -238,9 +240,9 @@ if($prepareHosts) {
 		Write-Log "Creating VDS Context"
 		New-NsxVdsContext -VirtualDistributedSwitch $nVDSwitch -Teaming LOADBALANCE_SRCID -Mtu 1600 | Out-File -Append -LiteralPath $verboseLogFile
 	}
-	$vxlanStatus =  (Get-NsxClusterStatus $nCluster | where {$_.featureId -eq "com.vmware.vshield.vsm.vxlan" }).status | Out-File -Append -LiteralPath $verboseLogFile
+	$vxlanStatus =  (Get-NsxClusterStatus $resCluster | where {$_.featureId -eq "com.vmware.vshield.vsm.vxlan" }).status | Out-File -Append -LiteralPath $verboseLogFile
 	if($vxlanStatus -ne "GREEN") {
-		$nCluster | New-NsxClusterVxlanConfig -VirtualDistributedSwitch $nVDSwitch -ipPool (Get-NsxIpPool -Name "VTEPs") -VlanId 0 -VtepCount 2
+		$resCluster | New-NsxClusterVxlanConfig -VirtualDistributedSwitch $nVDSwitch -ipPool (Get-NsxIpPool -Name "VTEPs") -VlanId 0 -VtepCount 2
 	} else {
 		Write-Log "VXLAN already configured, skipping" -Warning
 	}
@@ -250,7 +252,7 @@ if($prepareHosts) {
 	Invoke-NsxRestMethod -Method PUT -URI "/api/2.0/vdn/config/vxlan/udp/port/8472"
 	Write-Host "Creating Transport Zone"
 	if((Get-NsxTransportZone -Name "TZ") -eq $null) {
-		New-NSXTransportZone -Name "TZ" -Cluster $nCluster -ControlPlaneMode "UNICAST_MODE" | Out-File -Append -LiteralPath $verboseLogFile
+		New-NSXTransportZone -Name "TZ" -Cluster $resCluster -ControlPlaneMode "UNICAST_MODE" | Out-File -Append -LiteralPath $verboseLogFile
 	} else {
 		Write-Log "Transport Zone exists, skipping" -warning
 	}

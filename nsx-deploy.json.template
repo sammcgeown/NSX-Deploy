@@ -5,7 +5,7 @@
         "management": {
             "server": "vcsa.definit.local",
             "user": "administrator@vsphere.local",
-            "password": "XXXXX!",
+            "password": "VMware!",
             "datacenter": "Lab",
             "cluster": "Workload",
             "datastore": "vsanDatastore",
@@ -15,12 +15,14 @@
         "resource": {
             "server": "192.168.201.10",
             "sso": "192.168.201.10",
+            "ssoport": "443",
             "user": "administrator@vsphere.local",
             "password": "VMware1!",
             "datacenter": "Pod201-Datacenter",
-            "cluster": "Pod201-Cluster",
-            "datastore": "vsanDatastore",
+            "cluster": "Pod201-Cluster-1",
+            "datastore": "datastore",
             "folder": "NSX",
+            "vds": "Pod-201-VDS",
             "controllerportgroup": "VLAN201"
         }
     },
@@ -42,21 +44,26 @@
             "source" : "E:\\Pod-Deploy-Source\\NSX\\VMware-NSX-Manager-6.4.0-7564187.ova"
         },
         "controllers": {
-            "password": "VMware1!",
+            "name": "nsxctrl",
+            "password": "VMware!",
             "pool": {
                 "name": "NSX-Controllers",
                 "startIp": "192.168.201.12",
-                "endIp": "192.168.201.14",
-                "password": "xxxxxx"
-            }
+                "endIp": "192.168.201.14"
+            },
+            "quantity": 3
         },
-        "vteppool": {
-            "name": "NSX-VTEPs",
-            "startIp": "192.168.201.30",
-            "endIp": "192.168.201.39"
+        "vxlan": {
+            "pool": {
+                "name": "NSX-VTEPs",
+                "gateway": "192.168.201.1",
+                "prefix": "24",
+                "startIp": "192.168.201.30",
+                "endIp": "192.168.201.39"
+            }
         }
     },
     "syslog": "192.168.1.26",
     "log": "nsx-deploy.log",
-    "license": "XXXX-XXXX-XXXX-XXXX"
+    "license": "XXXXX-XXXXX-XXXXX-XXXXX"
 }
