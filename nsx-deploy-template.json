@@ -1,0 +1,62 @@
+{
+    "__version": "0.1",
+    "__comments": "Configuration for nsx-deploy.ps1 - www.definit.co.uk",
+    "vcenter": {
+        "management": {
+            "server": "vcsa.definit.local",
+            "user": "administrator@vsphere.local",
+            "password": "XXXXX!",
+            "datacenter": "Lab",
+            "cluster": "Workload",
+            "datastore": "vsanDatastore",
+            "folder": "Nested Labs/Pod201",
+            "portgroup": "201-Pod-201-Nested"
+        },
+        "resource": {
+            "server": "192.168.201.10",
+            "sso": "192.168.201.10",
+            "user": "administrator@vsphere.local",
+            "password": "VMware1!",
+            "datacenter": "Pod201-Datacenter",
+            "cluster": "Pod201-Cluster",
+            "datastore": "vsanDatastore",
+            "folder": "NSX",
+            "controllerportgroup": "VLAN201"
+        }
+    },
+    "nsx": {
+        "manager": {
+            "name": "pod-201-nsx",
+            "adminpass": "VMware1!",
+            "enablepass": "VMware1!",
+            "network": {
+                "ip": "192.168.201.11",
+                "netmask": "255.255.255.0",
+                "gateway": "192.168.201.1",
+                "prefix": "24",
+                "dns": "192.168.1.1",
+                "domain": "definit.local",
+                "ntp": "192.168.1.1"
+            },
+            "enableSSH": true,
+            "source" : "E:\\Pod-Deploy-Source\\NSX\\VMware-NSX-Manager-6.4.0-7564187.ova"
+        },
+        "controllers": {
+            "password": "VMware1!",
+            "pool": {
+                "name": "NSX-Controllers",
+                "startIp": "192.168.201.12",
+                "endIp": "192.168.201.14",
+                "password": "xxxxxx"
+            }
+        },
+        "vteppool": {
+            "name": "NSX-VTEPs",
+            "startIp": "192.168.201.30",
+            "endIp": "192.168.201.39"
+        }
+    },
+    "syslog": "192.168.1.26",
+    "log": "nsx-deploy.log",
+    "license": "XXXX-XXXX-XXXX-XXXX"
+}
