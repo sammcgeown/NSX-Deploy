@@ -1,9 +1,9 @@
 param(
 	[Parameter(Mandatory=$true)] [String]$configFile,
-	[switch]$configureVDSwitch,
 	[switch]$deployNSXManager,
 	[switch]$configureNSX,
-	[switch]$deployControllers
+	[switch]$deployControllers,
+	[switch]$prepareHosts
 )
 Get-Module -ListAvailable VMware.PowerCLI,PowerNSX | Import-Module
 if ( !(Get-Module -Name VMware.VimAutomation.Core -ErrorAction SilentlyContinue) ) {
@@ -209,11 +209,16 @@ if($deployControllers) {
 	} else {
 		Write-Log "Deploying NSX Controllers"
 		while($controllerCount -lt $NSXConfig.nsx.controllers.quantity) {
-			$NSXController = New-NsxController -Cluster $resCluster -datastore $resDatastore -PortGroup $resControllerPortgroup -IpPool $NSXPool -Password $NSXConfig.nsx.controllers.password -Connection $NSX -Confirm:$false
+			if($controllerCount -gt 0) {
+				# Don't try and set the password
+				$NSXController = New-NsxController -Cluster $resCluster -datastore $resDatastore -PortGroup $resControllerPortgroup -IpPool $NSXPool -Connection $NSX -Confirm:$false
+			} else {
+				$NSXController = New-NsxController -Cluster $resCluster -datastore $resDatastore -PortGroup $resControllerPortgroup -IpPool $NSXPool -Password $NSXConfig.nsx.controllers.password -Connection $NSX -Confirm:$false
+			}
 			do {
 				Sleep -Seconds 20
-				$ControllerStatus = (Get-NSXController -ObjectId $NSXController.id).status
-			} Until (($ControllerStatus -eq "RUNNING"))
+				$ControllerStatus = (Get-NSXController | where {$_.status -ne "RUNNING" }).status
+			} Until (($ControllerStatus -eq "RUNNING") -or ($ControllerStatus -eq $null))
 			Write-Log "Controller deployed successfully"
 			$controllerCount = (Get-NSXController -connection $NSX | measure-object).count
 		}
@@ -235,24 +240,26 @@ if($prepareHosts) {
 	} else {
 		Write-Log "VTEP IP Pool exists, skipping" -Warning
 	}
-	$nVDSwitch = Get-VDSwitch -Server $nVCSA -Name $NSXConfig.vcsa.distributedSwitch
+	Write-Log "Creating VDS Context"
 	if((Get-NsxVdsContext) -eq $null) {
-		Write-Log "Creating VDS Context"
-		New-NsxVdsContext -VirtualDistributedSwitch $nVDSwitch -Teaming LOADBALANCE_SRCID -Mtu 1600 | Out-File -Append -LiteralPath $verboseLogFile
+		New-NsxVdsContext -VirtualDistributedSwitch $resDistributedSwitch -Teaming $NSXConfig.nsx.vxlan.teaming -Mtu $NSXConfig.nsx.vxlan.mtu | Out-File -Append -LiteralPath $verboseLogFile
+	} else {
+		Write-Log "VDS Context already configured, skipping" -Warning
 	}
-	$vxlanStatus =  (Get-NsxClusterStatus $resCluster | where {$_.featureId -eq "com.vmware.vshield.vsm.vxlan" }).status | Out-File -Append -LiteralPath $verboseLogFile
+	$vxlanStatus = (Get-NsxClusterStatus $resCluster | where {$_.featureId -eq "com.vmware.vshield.vsm.vxlan" }).status | Out-File -Append -LiteralPath $verboseLogFile
 	if($vxlanStatus -ne "GREEN") {
-		$resCluster | New-NsxClusterVxlanConfig -VirtualDistributedSwitch $nVDSwitch -ipPool (Get-NsxIpPool -Name "VTEPs") -VlanId 0 -VtepCount 2
+		Write-Log "Creating VXLAN configurations"
+		$resCluster | New-NsxClusterVxlanConfig -VirtualDistributedSwitch $resDistributedSwitch -ipPool (Get-NsxIpPool -Name $vtepPool.name) -VlanId $vtepPool.vlan
 	} else {
 		Write-Log "VXLAN already configured, skipping" -Warning
 	}
 	# Change the NSX VXLAN UDP Port to enable nested ESXi, if you have NSX enabled on the
 	# VDSwitch that hosts the nested environment, then you must change the port to something
 	# that is different.
-	Invoke-NsxRestMethod -Method PUT -URI "/api/2.0/vdn/config/vxlan/udp/port/8472"
-	Write-Host "Creating Transport Zone"
-	if((Get-NsxTransportZone -Name "TZ") -eq $null) {
-		New-NSXTransportZone -Name "TZ" -Cluster $resCluster -ControlPlaneMode "UNICAST_MODE" | Out-File -Append -LiteralPath $verboseLogFile
+	# Invoke-NsxRestMethod -Method PUT -URI "/api/2.0/vdn/config/vxlan/udp/port/8472"
+	Write-Log "Creating Transport Zone"
+	if((Get-NsxTransportZone -Name $NSXConfig.nsx.transport.name) -eq $null) {
+		New-NSXTransportZone -Name $NSXConfig.nsx.transport.name -Cluster $resCluster -ControlPlaneMode $NSXConfig.nsx.transport.mode | Out-File -Append -LiteralPath $verboseLogFile
 	} else {
 		Write-Log "Transport Zone exists, skipping" -warning
 	}
