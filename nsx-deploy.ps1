@@ -226,9 +226,9 @@ if($deployControllers) {
 }
 if($prepareHosts) {
 	Write-Log "## Preparing hosts ##"
+	Write-Log "Initiating installation of NSX agents"
 	$clusterStatus = ($resCluster | Get-NsxClusterStatus | select -first 1).installed
 	if($clusterStatus -eq "false") {
-		Write-Log "Initiating installation of NSX agents"
 		$resCluster | Install-NsxCluster | Out-File -Append -LiteralPath $verboseLogFile
 	} else {
 		Write-Log "Cluster is already installed" -Warning
@@ -246,12 +246,18 @@ if($prepareHosts) {
 	} else {
 		Write-Log "VDS Context already configured, skipping" -Warning
 	}
-	$vxlanStatus = (Get-NsxClusterStatus $resCluster | where {$_.featureId -eq "com.vmware.vshield.vsm.vxlan" }).status | Out-File -Append -LiteralPath $verboseLogFile
+	Write-Log "Creating VXLAN configurations"
+	$vxlanStatus = (Get-NsxClusterStatus $resCluster | where {$_.featureId -eq "com.vmware.vshield.vsm.vxlan" }).status # | Out-File -Append -LiteralPath $verboseLogFile
 	if($vxlanStatus -ne "GREEN") {
-		Write-Log "Creating VXLAN configurations"
-		$resCluster | New-NsxClusterVxlanConfig -VirtualDistributedSwitch $resDistributedSwitch -ipPool (Get-NsxIpPool -Name $vtepPool.name) -VlanId $vtepPool.vlan
+		$resCluster | New-NsxClusterVxlanConfig -VirtualDistributedSwitch $resDistributedSwitch -ipPool (Get-NsxIpPool -Name $vtepPool.name) -VlanId $vtepPool.vlan | Out-File -Append -LiteralPath $verboseLogFile
 	} else {
 		Write-Log "VXLAN already configured, skipping" -Warning
+	}
+	Write-Log "Creating Segment ID Range"
+	if((Get-NSXsegmentidrange) -eq $null) {
+		New-NSXsegmentidrange -Name $NSXConfig.nsx.transport.segmentidrange.name -Begin $NSXConfig.nsx.transport.segmentidrange.begin -End $NSXConfig.nsx.transport.segmentidrange.end | Out-File -Append -LiteralPath $verboseLogFile
+	} else {
+		Write-Log "Segment ID Range exists, skipping" -Warning
 	}
 	# Change the NSX VXLAN UDP Port to enable nested ESXi, if you have NSX enabled on the
 	# VDSwitch that hosts the nested environment, then you must change the port to something
@@ -265,6 +271,7 @@ if($prepareHosts) {
 	}
 }
 
+Disconnect-NSXServer
 Close-VCSAConnection
 
 $EndTime = Get-Date
