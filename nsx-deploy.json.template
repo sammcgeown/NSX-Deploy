@@ -5,7 +5,7 @@
         "management": {
             "server": "vcsa.definit.local",
             "user": "administrator@vsphere.local",
-            "password": "VMware!",
+            "password": "VMware1!",
             "datacenter": "Lab",
             "cluster": "Workload",
             "datastore": "vsanDatastore",
@@ -45,7 +45,7 @@
         },
         "controllers": {
             "name": "nsxctrl",
-            "password": "VMware!",
+            "password": "VMware1!",
             "pool": {
                 "name": "NSX-Controllers",
                 "startIp": "192.168.201.12",
@@ -60,6 +60,18 @@
                 "prefix": "24",
                 "startIp": "192.168.201.30",
                 "endIp": "192.168.201.39"
+            },
+            "teaming" : "LOADBALANCE_SRCID",
+            "mtu": "1600",
+            "vlan": 0
+        },
+        "transport": {
+            "name": "TZ",
+            "mode": "UNICAST_MODE",
+            "segmentidrange": {
+                "name": "NSX-SegmentIdRange",
+                "begin": 5000,
+                "end": 9999
             }
         }
     },
