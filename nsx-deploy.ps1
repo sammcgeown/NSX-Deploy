@@ -30,7 +30,7 @@ Function Write-Log {
 		Write-Host -ForegroundColor Yellow " WARNING: $message"
 	} elseif($Info) {
 		Write-Host -ForegroundColor White " $message"
-	}else {
+	} else {
 		Write-Host -ForegroundColor Green " $message"
 	}
 	$logMessage = "[$timeStamp] $message" | Out-File -Append -LiteralPath $verboseLogFile
@@ -130,41 +130,64 @@ if($DeployNSXManager) {
 	Write-Log "#### Deploying NSX Manager ####"
 
 	if((Get-VM -Server $mgmtVCSA | Where-Object -Property Name -eq -Value $NSXConfig.nsx.manager.name) -eq $null) {
-		$ovfconfig = @{
-			"vsm_cli_en_passwd_0" = "$($NSXConfig.nsx.manager.enablepass)"
-			"NetworkMapping.VSMgmt" = "$($NSXConfig.vcenter.management.portgroup)"
-			"vsm_gateway_0" = "$($NSXConfig.nsx.manager.network.gateway)"
-			"vsm_cli_passwd_0" = "$($NSXConfig.nsx.manager.adminpass)"
-			"vsm_isSSHEnabled" = "$($NSXConfig.nsx.manager.enableSSH)"
-			"vsm_netmask_0" = "$($NSXConfig.nsx.manager.network.netmask)"
-			"vsm_hostname" = "$($NSXConfig.nsx.manager.name).$($NSXConfig.nsx.manager.network.domain)"
-			"vsm_ntp_0" = "$($NSXConfig.nsx.manager.network.ntp)"
-			"vsm_ip_0" = "$($NSXConfig.nsx.manager.network.ip)"
-			"vsm_dns1_0" = "$($NSXConfig.nsx.manager.network.dns)"
-			"vsm_domain_0" = "$($NSXConfig.nsx.manager.network.domain)"
-		}
+		# $ovfconfig = @{
+		# 	"vsm_cli_en_passwd_0" = "$($NSXConfig.nsx.manager.enablepass)"
+		# 	"NetworkMapping.VSMgmt" = "$($NSXConfig.vcenter.management.portgroup)"
+		# 	"vsm_gateway_0" = "$($NSXConfig.nsx.manager.network.gateway)"
+		# 	"vsm_cli_passwd_0" = "$($NSXConfig.nsx.manager.adminpass)"
+		# 	"vsm_isSSHEnabled" = "$($NSXConfig.nsx.manager.enableSSH)"
+		# 	"vsm_netmask_0" = "$($NSXConfig.nsx.manager.network.netmask)"
+		# 	"vsm_hostname" = "$($NSXConfig.nsx.manager.name).$($NSXConfig.nsx.manager.network.domain)"
+		# 	"vsm_ntp_0" = "$($NSXConfig.nsx.manager.network.ntp)"
+		# 	"vsm_ip_0" = "$($NSXConfig.nsx.manager.network.ip)"
+		# 	"vsm_dns1_0" = "$($NSXConfig.nsx.manager.network.dns)"
+		# 	"vsm_domain_0" = "$($NSXConfig.nsx.manager.network.domain)"
+		# }
 		Write-Log "Deploying NSX Manager OVA"
-		$importedVApp = Import-VApp -Server $mgmtVCSA -VMhost $mgmtHost -Source $NSXConfig.nsx.manager.source -OVFConfiguration $ovfconfig -Name $NSXConfig.nsx.manager.name -Datastore $mgmtDatastore -DiskStorageFormat thin
+
+		$Param = @{
+			NsxManagerOVF		=	$NSXConfig.nsx.manager.source
+			Name				=	$NSXConfig.nsx.manager.name 
+			ClusterName			=	$NSXConfig.vcenter.management.cluster
+			ManagementPortGroupName	=	$NSXConfig.vcenter.management.portgroup
+			DatastoreName		=	$NSXConfig.vcenter.management.datastore
+			FolderName			=	($NSXConfig.vcenter.management.folder.split("/") | Select -Last 1)
+			CliPassword			=	$NSXConfig.nsx.manager.adminpass
+			CliEnablePassword	=	$NSXConfig.nsx.manager.enablepass
+			Hostname			=	$NSXConfig.nsx.manager.name
+			IpAddress			=	$NSXConfig.nsx.manager.network.ip
+			Netmask 			=	$NSXConfig.nsx.manager.network.netmask
+			Gateway 			=	$NSXConfig.nsx.manager.network.gateway
+			DnsServer			=	$NSXConfig.nsx.manager.network.dns
+			DnsDomain			=	$NSXConfig.nsx.manager.network.domain
+			NtpServer			=	$NSXConfig.nsx.manager.network.ntp
+			EnableSsh			=	$NSXConfig.nsx.manager.enableSSH
+		}
+
+		if(!(New-NSXManager @Param -StartVM -Wait)) {
+			throw "Unable to deploy NSX Manager OVF! $_"
+		}
+		#$importedVApp = Import-VApp -Server $mgmtVCSA -VMhost $mgmtHost -Source $NSXConfig.nsx.manager.source -OVFConfiguration $ovfconfig -Name $NSXConfig.nsx.manager.name -Datastore $mgmtDatastore -DiskStorageFormat thin
 		$NSXManager = Get-VM -Name $NSXConfig.nsx.manager.name -Server $mgmtVCSA
-		Write-Log "Moving $($NSXConfig.nsx.manager.name) to $($NSXConfig.vcenter.management.folder) folder"
-		Move-VM -VM $NSXManager -Destination $mgmtFolder |  Out-File -Append -LiteralPath $verboseLogFile
-		Write-Log "Powering On NSX Manager VM" -Info
-		Start-VM -Server $mgmtVCSA -VM $NSXManager -Confirm:$false | Out-File -Append -LiteralPath $verboseLogFile
-		Write-Log "Waiting for VM Guest Tools (may take a few minutes)" -Info
-		do {
-			Sleep -Seconds 20
-			$VM_View = Get-VM $NSXConfig.nsx.manager.name -Server $mgmtVCSA | Get-View
-			$toolsStatus = $VM_View.Summary.Guest.ToolsRunningStatus
-		} Until ($toolsStatus -eq "guestToolsRunning")
-		Write-Log "NSX Manager has booted successfully, waiting for API (may take a few minutes)" -Info
-		$base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("{0}:{1}" -f "admin",$NSXConfig.nsx.manager.adminpass)))
-		$header = @{Authorization=("Basic {0}" -f $base64AuthInfo)}
-		$uri = "https://$($NSXConfig.nsx.manager.network.ip)/api/2.0/vdn/controller"
-		do {
-			Start-Sleep -Seconds 20
-			$result = try { Invoke-WebRequest -Uri $uri -Headers $header -ContentType "application/xml"} catch { $_.Exception.Response}
-		} Until ($result.statusCode -eq "200")
-		Write-Log "Connected to NSX API successfully" -Info
+		# Write-Log "Moving $($NSXConfig.nsx.manager.name) to $($NSXConfig.vcenter.management.folder) folder"
+		# Move-VM -VM $NSXManager -InventoryLocation $mgmtFolder |  Out-File -Append -LiteralPath $verboseLogFile
+		#Write-Log "Powering On NSX Manager VM" -Info
+		#Start-VM -Server $mgmtVCSA -VM $NSXManager -Confirm:$false | Out-File -Append -LiteralPath $verboseLogFile
+		# Write-Log "Waiting for VM Guest Tools"
+		# do {
+		# 	Sleep -Seconds 20
+		# 	$VM_View = Get-VM $NSXConfig.nsx.manager.name -Server $mgmtVCSA | Get-View
+		# 	$toolsStatus = $VM_View.Summary.Guest.ToolsRunningStatus
+		# } Until ($toolsStatus -eq "guestToolsRunning")
+		# Write-Log "NSX Manager has booted successfully, waiting for API"
+		# $base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("{0}:{1}" -f "admin",$NSXConfig.nsx.manager.adminpass)))
+		# $header = @{Authorization=("Basic {0}" -f $base64AuthInfo)}
+		# $uri = "https://$($NSXConfig.nsx.manager.network.ip)/api/2.0/vdn/controller"
+		# do {
+		# 	Start-Sleep -Seconds 20
+		# 	$result = try { Invoke-WebRequest -Uri $uri -Headers $header -ContentType "application/xml"} catch { $_.Exception.Response}
+		# } Until ($result.statusCode -eq "200")
+		# Write-Log "Connected to NSX API successfully"
 	} else {
 		Write-Log "NSX manager exists, skipping" -Warning
 	}
@@ -172,27 +195,28 @@ if($DeployNSXManager) {
 
 if($configureNSX) {
 	Write-Log "#### Configuring NSX Manager ####"
-	Write-Log "Licensing NSX"
-	$ServiceInstance = Get-View ServiceInstance -Server $resVCSA
-	$LicenseManager = Get-View $ServiceInstance.Content.licenseManager
-	$LicenseAssignmentManager = Get-View $LicenseManager.licenseAssignmentManager
-	$LicenseAssignmentManager.UpdateAssignedLicense("nsx-netsec",$NSXConfig.license,$NULL) | Out-Null
 
 	Write-Log "## Connect NSX Manager to vCenter ##"
-	Connect-NSXServer -NsxServer $NSXConfig.nsx.manager.network.ip -Username "admin" -Password $NSXConfig.nsx.manager.adminpass |  Out-File -Append -LiteralPath $verboseLogFile
+	Connect-NSXServer -NsxServer $NSXConfig.nsx.manager.network.ip -Username "admin" -Password $NSXConfig.nsx.manager.adminpass -DisableViAutoConnect -WarningAction SilentlyContinue |  Out-File -Append -LiteralPath $verboseLogFile
 	$NSXVC = Get-NsxManagerVcenterConfig
 
 	if($NSXVC.Connected -eq $true) {
 		Write-Log "NSX Manager is already connected to vCenter" -Warning
 	} else {
-		Set-NsxManager -vcenterusername $NSXConfig.vcenter.resource.user -vcenterpassword $NSXConfig.vcenter.resource.password -vcenterserver $NSXConfig.vcenter.resource.server |  Out-File -Append -LiteralPath $verboseLogFile
+		Set-NsxManager -vcenterusername $NSXConfig.vcenter.resource.user -vcenterpassword $NSXConfig.vcenter.resource.password -vcenterserver $NSXConfig.vcenter.resource.server -WarningAction SilentlyContinue |  Out-File -Append -LiteralPath $verboseLogFile
 	}
 	$NSXSSO = Get-NsxManagerSsoConfig
 	if($NSXSSO.Connected -ne $true) {
-		Set-NsxManager -ssousername $NSXConfig.vcenter.resource.user -ssopassword $NSXConfig.nsx.manager.adminpass -ssoserver $NSXConfig.vcenter.resource.sso -SsoPort $NSXConfig.vcenter.resource.ssoport |  Out-File -Append -LiteralPath $verboseLogFile
+		Set-NsxManager -ssousername $NSXConfig.vcenter.resource.user -ssopassword $NSXConfig.nsx.manager.adminpass -ssoserver $NSXConfig.vcenter.resource.sso -SsoPort $NSXConfig.vcenter.resource.ssoport -WarningAction SilentlyContinue |  Out-File -Append -LiteralPath $verboseLogFile
 	} else {
 		Write-Log "NSX Manager is already connected to SSO" -Warning
 	}
+
+	Write-Log "Licensing NSX"
+	$ServiceInstance = Get-View ServiceInstance -Server $resVCSA
+	$LicenseManager = Get-View $ServiceInstance.Content.licenseManager
+	$LicenseAssignmentManager = Get-View $LicenseManager.licenseAssignmentManager
+	$LicenseAssignmentManager.UpdateAssignedLicense("nsx-netsec",$NSXConfig.license,$NULL) | Out-Null
 }
 if($deployControllers) {
 	$NSX = Connect-NSXServer -NsxServer $NSXConfig.nsx.manager.network.ip -Username "admin" -Password $NSXConfig.nsx.manager.adminpass -WarningAction SilentlyContinue
@@ -202,34 +226,44 @@ if($deployControllers) {
 	} else {
 		Write-Log "NSX Controller IP Pool exists, skipping" -Warning
 	}
-	$controllerCount = (Get-NSXController -connection $NSX | measure-object).count
 	$NSXPool = Get-NSXIPPool $NSXConfig.nsx.controllers.pool.name
-	if($controllerCount -eq $NSXConfig.nsx.controllers.quantity) {
-		Write-Log "NSX Controllers Exist, skipping" -Warning
-	} else {
-		Write-Log "Deploying NSX Controllers"
-		while($controllerCount -lt $NSXConfig.nsx.controllers.quantity) {
-			if($controllerCount -gt 0) {
-				# Don't try and set the password
-				$NSXController = New-NsxController -Cluster $resCluster -datastore $resDatastore -PortGroup $resControllerPortgroup -IpPool $NSXPool -Connection $NSX -Confirm:$false
-			} else {
-				$NSXController = New-NsxController -Cluster $resCluster -datastore $resDatastore -PortGroup $resControllerPortgroup -IpPool $NSXPool -Password $NSXConfig.nsx.controllers.password -Connection $NSX -Confirm:$false
+	foreach($controller in $NSXConfig.nsx.controllers.controller) {
+		if((Get-NSXController | where-object {$_.name -eq $controller.name}) -ne $null) {
+			Write-Log "NSX Controller $($controller.name) Exists, skipping" -Warning
+		} else {
+			Write-Log "Deploying NSX Controller ($($controller.name))"
+			$Param = @{
+				ControllerName = $($controller.name)
+				Cluster = $resCluster
+				Datastore = $resDatastore
+				PortGroup = $resControllerPortgroup
+				IpPool = $NSXPool
+				Connection = $NSX
+				Confirm = $false
+				Wait = $true
 			}
-			do {
-				Sleep -Seconds 20
-				$ControllerStatus = (Get-NSXController | where {$_.status -ne "RUNNING" }).status
-			} Until (($ControllerStatus -eq "RUNNING") -or ($ControllerStatus -eq $null))
+			# Only add the password for the primary controller
+			if((Get-NSXController -connection $NSX | measure-object).count -eq 0) {
+				$Param.Add("Password", $NSXConfig.nsx.controllers.password)
+			}
+			New-NSXController @Param | Out-File -Append -LiteralPath $verboseLogFile
+			#New-NsxController -ControllerName $controller.name -Cluster $resCluster -datastore $resDatastore -Password $NSXConfig.nsx.controllers.password -PortGroup $resControllerPortgroup -IpPool $NSXPool -Connection $NSX -Confirm:$false -Wait
+
+			# do {
+			# 	Sleep -Seconds 30
+			# 	$ControllerStatus = (Get-NSXController | where-object {$_.ControllerName -eq $controller.name}).status
+			# } Until (($ControllerStatus -eq "RUNNING") -or ($ControllerStatus -eq $null))
 			Write-Log "Controller deployed successfully"
-			$controllerCount = (Get-NSXController -connection $NSX | measure-object).count
 		}
 	}
 }
 if($prepareHosts) {
+	$NSX = Connect-NSXServer -NsxServer $NSXConfig.nsx.manager.network.ip -Username "admin" -Password $NSXConfig.nsx.manager.adminpass -WarningAction SilentlyContinue
 	Write-Log "## Preparing hosts ##"
 	Write-Log "Initiating installation of NSX agents"
 	$clusterStatus = ($resCluster | Get-NsxClusterStatus | select -first 1).installed
 	if($clusterStatus -eq "false") {
-		$resCluster | Install-NsxCluster | Out-File -Append -LiteralPath $verboseLogFile
+		$resCluster | Install-NsxCluster -VxlanPrepTimeout 360 | Out-File -Append -LiteralPath $verboseLogFile
 	} else {
 		Write-Log "Cluster is already installed" -Warning
 	}
@@ -271,7 +305,32 @@ if($prepareHosts) {
 	}
 }
 
-Disconnect-NSXServer
+if($deployComponents) {
+	$NSX = Connect-NSXServer -NsxServer $NSXConfig.nsx.manager.network.ip -Username "admin" -Password $NSXConfig.nsx.manager.adminpass -WarningAction SilentlyContinue
+	Write-Log "Creating Logical Switches"
+	foreach ($logicalSwitch in $NSXConfig.components.logicalswitches) {
+		Write-Host "Creating $($logicalswitch.name)" -Info
+		if((Get-NSXLogicalSwitch -Name $logicalSwitch.name) -eq $null) {
+				Get-NSXTransportZone $NSXConfig.nsx.transport.name | New-NSXLogicalSwitch $logicalSwitch.name | Out-File -Append -LiteralPath $verboseLogFile
+		} else {
+			Write-log "Logical Switch $($logicalSwitch.name) exists, skipping" -Warning
+		}
+	}
+
+	Write-log "Creating Provider Logical Router Edge(s)"
+	foreach($plr in $NSXConfig.components.edges.plr) {
+		if($plr.interfaces[0]) {
+
+			$int0 = New-NsxEdgeinterfacespec -index 0 -Name  -type Uplink -ConnectedTo $EdgeUplinkNetwork -PrimaryAddress $EdgeUplinkPrimaryAddress -SecondaryAddress $EdgeUplinkSecondaryAddress -SubnetPrefixLength $DefaultSubnetBits
+		}
+		if($plr.interfaces[1]) {
+			$int1 = New-NsxEdgeinterfacespec -index 1 -Name  -type Uplink -ConnectedTo $EdgeUplinkNetwork -PrimaryAddress $EdgeUplinkPrimaryAddress -SecondaryAddress $EdgeUplinkSecondaryAddress -SubnetPrefixLength $DefaultSubnetBits
+		}
+	}
+}
+if($DefaultNSXConnection) {
+	Disconnect-NSXServer -ErrorAction SilentlyContinue
+}
 Close-VCSAConnection
 
 $EndTime = Get-Date
