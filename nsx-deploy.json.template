@@ -1,5 +1,5 @@
 {
-    "__version": "0.1",
+    "__version": "0.2",
     "__comments": "Configuration for nsx-deploy.ps1 - www.definit.co.uk",
     "vcenter": {
         "management": {
@@ -45,13 +45,23 @@
         },
         "controllers": {
             "name": "nsxctrl",
-            "password": "VMware1!",
+            "password": "VMware1!VMware1!",
             "pool": {
                 "name": "NSX-Controllers",
                 "startIp": "192.168.201.12",
                 "endIp": "192.168.201.14"
             },
-            "quantity": 3
+            "controller": [
+                {  
+                    "name": "controller-1"
+                },
+                {
+                    "name": "controller-2"
+                },
+                {
+                    "name": "controller-3"
+                }
+            ]
         },
         "vxlan": {
             "pool": {
@@ -63,7 +73,7 @@
             },
             "teaming" : "LOADBALANCE_SRCID",
             "mtu": "1600",
-            "vlan": 0
+            "vlan": 201
         },
         "transport": {
             "name": "TZ",
@@ -77,5 +87,50 @@
     },
     "syslog": "192.168.1.26",
     "log": "nsx-deploy.log",
-    "license": "XXXXX-XXXXX-XXXXX-XXXXX"
+    "license": "XXXXX-XXXXX-XXXXX-XXXXX-XXXXX",
+    "components": {
+        "logicalswitches": [
+            {
+                "name": "transit-network"
+            }
+        ],
+        "edges": {
+            "plr": [
+                {
+                    "name": "plr-1",
+                    "interfaces": [
+                        {
+                            "name": "uplink-vlan-100",
+                            "type": "uplink",
+                            "ip": "192.168.100.99",
+                            "prefix": "24",
+                            "connectto": "VLAN100"                        
+                        },
+                        {
+                            "name": "uplink-vlan-9",
+                            "type": "uplink",
+                            "ip": "192.168.9.99",
+                            "prefix": "24",
+                            "connectto": "VLAN9"                        
+                        },
+                        {
+                            "name": "transit-network",
+                            "type": "internal",
+                            "ip": "10.0.100.1",
+                            "prefix": "24",
+                            "connectto": "transit-network"                        
+                        }
+                    ]
+                },
+                {
+                    "name": "plr-2"
+                }
+            ],
+            "dlr": [
+                {
+                    "name": "dlr"
+                }
+            ]
+        }
+    }
 }

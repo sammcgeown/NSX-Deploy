@@ -130,21 +130,7 @@ if($DeployNSXManager) {
 	Write-Log "#### Deploying NSX Manager ####"
 
 	if((Get-VM -Server $mgmtVCSA | Where-Object -Property Name -eq -Value $NSXConfig.nsx.manager.name) -eq $null) {
-		# $ovfconfig = @{
-		# 	"vsm_cli_en_passwd_0" = "$($NSXConfig.nsx.manager.enablepass)"
-		# 	"NetworkMapping.VSMgmt" = "$($NSXConfig.vcenter.management.portgroup)"
-		# 	"vsm_gateway_0" = "$($NSXConfig.nsx.manager.network.gateway)"
-		# 	"vsm_cli_passwd_0" = "$($NSXConfig.nsx.manager.adminpass)"
-		# 	"vsm_isSSHEnabled" = "$($NSXConfig.nsx.manager.enableSSH)"
-		# 	"vsm_netmask_0" = "$($NSXConfig.nsx.manager.network.netmask)"
-		# 	"vsm_hostname" = "$($NSXConfig.nsx.manager.name).$($NSXConfig.nsx.manager.network.domain)"
-		# 	"vsm_ntp_0" = "$($NSXConfig.nsx.manager.network.ntp)"
-		# 	"vsm_ip_0" = "$($NSXConfig.nsx.manager.network.ip)"
-		# 	"vsm_dns1_0" = "$($NSXConfig.nsx.manager.network.dns)"
-		# 	"vsm_domain_0" = "$($NSXConfig.nsx.manager.network.domain)"
-		# }
 		Write-Log "Deploying NSX Manager OVA"
-
 		$Param = @{
 			NsxManagerOVF		=	$NSXConfig.nsx.manager.source
 			Name				=	$NSXConfig.nsx.manager.name 
@@ -167,27 +153,7 @@ if($DeployNSXManager) {
 		if(!(New-NSXManager @Param -StartVM -Wait)) {
 			throw "Unable to deploy NSX Manager OVF! $_"
 		}
-		#$importedVApp = Import-VApp -Server $mgmtVCSA -VMhost $mgmtHost -Source $NSXConfig.nsx.manager.source -OVFConfiguration $ovfconfig -Name $NSXConfig.nsx.manager.name -Datastore $mgmtDatastore -DiskStorageFormat thin
 		$NSXManager = Get-VM -Name $NSXConfig.nsx.manager.name -Server $mgmtVCSA
-		# Write-Log "Moving $($NSXConfig.nsx.manager.name) to $($NSXConfig.vcenter.management.folder) folder"
-		# Move-VM -VM $NSXManager -InventoryLocation $mgmtFolder |  Out-File -Append -LiteralPath $verboseLogFile
-		#Write-Log "Powering On NSX Manager VM" -Info
-		#Start-VM -Server $mgmtVCSA -VM $NSXManager -Confirm:$false | Out-File -Append -LiteralPath $verboseLogFile
-		# Write-Log "Waiting for VM Guest Tools"
-		# do {
-		# 	Sleep -Seconds 20
-		# 	$VM_View = Get-VM $NSXConfig.nsx.manager.name -Server $mgmtVCSA | Get-View
-		# 	$toolsStatus = $VM_View.Summary.Guest.ToolsRunningStatus
-		# } Until ($toolsStatus -eq "guestToolsRunning")
-		# Write-Log "NSX Manager has booted successfully, waiting for API"
-		# $base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("{0}:{1}" -f "admin",$NSXConfig.nsx.manager.adminpass)))
-		# $header = @{Authorization=("Basic {0}" -f $base64AuthInfo)}
-		# $uri = "https://$($NSXConfig.nsx.manager.network.ip)/api/2.0/vdn/controller"
-		# do {
-		# 	Start-Sleep -Seconds 20
-		# 	$result = try { Invoke-WebRequest -Uri $uri -Headers $header -ContentType "application/xml"} catch { $_.Exception.Response}
-		# } Until ($result.statusCode -eq "200")
-		# Write-Log "Connected to NSX API successfully"
 	} else {
 		Write-Log "NSX manager exists, skipping" -Warning
 	}
@@ -247,14 +213,9 @@ if($deployControllers) {
 				$Param.Add("Password", $NSXConfig.nsx.controllers.password)
 			}
 			New-NSXController @Param | Out-File -Append -LiteralPath $verboseLogFile
-			#New-NsxController -ControllerName $controller.name -Cluster $resCluster -datastore $resDatastore -Password $NSXConfig.nsx.controllers.password -PortGroup $resControllerPortgroup -IpPool $NSXPool -Connection $NSX -Confirm:$false -Wait
-
-			# do {
-			# 	Sleep -Seconds 30
-			# 	$ControllerStatus = (Get-NSXController | where-object {$_.ControllerName -eq $controller.name}).status
-			# } Until (($ControllerStatus -eq "RUNNING") -or ($ControllerStatus -eq $null))
 			Write-Log "Controller deployed successfully"
 		}
+
 	}
 }
 if($prepareHosts) {
