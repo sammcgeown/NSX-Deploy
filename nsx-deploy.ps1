@@ -5,7 +5,12 @@ param(
 	[switch]$deployControllers,
 	[switch]$prepareHosts
 )
-Get-Module -ListAvailable VMware.PowerCLI,PowerNSX | Import-Module
+try {
+	Get-Module -ListAvailable VMware.PowerCLI,PowerNSX | Import-Module -ErrorAction SilentlyContinue
+}
+catch {}
+finally {}
+
 if ( !(Get-Module -Name VMware.VimAutomation.Core -ErrorAction SilentlyContinue) ) {
 	throw "PowerCLI must be installed"
 }
@@ -33,7 +38,7 @@ Function Write-Log {
 	} else {
 		Write-Host -ForegroundColor Green " $message"
 	}
-	$logMessage = "[$timeStamp] $message" | Out-File -Append -LiteralPath $verboseLogFile
+	"[$($timeStamp)] $($message)" | Out-File -Append -LiteralPath $verboseLogFile
 }
 
 function Get-VCSAConnection {
@@ -102,7 +107,7 @@ $mgmtPortgroup = Get-VDPortgroup -Name $NSXConfig.vcenter.management.portgroup -
 if($mgmtPortgroup) { Write-Log "Management Portgroup: OK" } else { Write-Log "Management Portgroup: Failed" -Warning; $preflightFailure = $true }
 $mgmtFolder = Get-VMFolder -vcsaConnection $mgmtVCSA -folderPath $NSXConfig.vcenter.management.folder -ErrorAction SilentlyContinue
 if($mgmtFolder) { Write-Log "Management Folder: OK" } else { Write-Log "Management Folder: Failed" -Warning; $preflightFailure = $true }
-$mgmtHost = $mgmtCluster | Get-VMHost -Server $mgmtVCSA  -ErrorAction SilentlyContinue | where { $_.ConnectionState -eq "Connected" } | Get-Random
+$mgmtHost = $mgmtCluster | Get-VMHost -Server $mgmtVCSA  -ErrorAction SilentlyContinue | Where-Object { $_.ConnectionState -eq "Connected" } | Get-Random
 if($mgmtHost) { Write-Log "Management Host: OK" } else { Write-Log "Management Host: Failed" -Warning; $preflightFailure = $true }
 Write-Log "### Validating Resource"
 $resVCSA = Get-VCSAConnection -vcsaName $NSXConfig.vcenter.resource.server -vcsaUser $NSXConfig.vcenter.resource.user -vcsaPassword $NSXConfig.vcenter.resource.password -ErrorAction SilentlyContinue
@@ -117,7 +122,7 @@ $resControllerPortgroup = Get-VDPortgroup -Name $NSXConfig.vcenter.resource.cont
 if($resControllerPortgroup) { Write-Log "Resource Controller Portgroup: OK" } else { Write-Log "Resource Portgroup: Failed" -Warning; $preflightFailure = $true }
 $resFolder = Get-VMFolder -vcsaConnection $resVCSA -folderPath $NSXConfig.vcenter.resource.folder -ErrorAction SilentlyContinue
 if($resFolder) { Write-Log "Resource Folder: OK" } else { Write-Log "Resource Folder: Failed" -Warning; $preflightFailure = $true }
-$resHost = $resCluster | Get-VMHost -Server $resVCSA  -ErrorAction SilentlyContinue | where { $_.ConnectionState -eq "Connected" } | Get-Random
+$resHost = $resCluster | Get-VMHost -Server $resVCSA  -ErrorAction SilentlyContinue | Where-Object { $_.ConnectionState -eq "Connected" } | Get-Random
 if($resHost) { Write-Log "Resource Host: OK" } else { Write-Log "Resource Host: Failed" -Warning; $preflightFailure = $true }
 
 
@@ -137,7 +142,7 @@ if($DeployNSXManager) {
 			ClusterName			=	$NSXConfig.vcenter.management.cluster
 			ManagementPortGroupName	=	$NSXConfig.vcenter.management.portgroup
 			DatastoreName		=	$NSXConfig.vcenter.management.datastore
-			FolderName			=	($NSXConfig.vcenter.management.folder.split("/") | Select -Last 1)
+			FolderName			=	($NSXConfig.vcenter.management.folder.split("/") | Select-Object -Last 1)
 			CliPassword			=	$NSXConfig.nsx.manager.adminpass
 			CliEnablePassword	=	$NSXConfig.nsx.manager.enablepass
 			Hostname			=	$NSXConfig.nsx.manager.name
@@ -153,7 +158,6 @@ if($DeployNSXManager) {
 		if(!(New-NSXManager @Param -StartVM -Wait)) {
 			throw "Unable to deploy NSX Manager OVF! $_"
 		}
-		$NSXManager = Get-VM -Name $NSXConfig.nsx.manager.name -Server $mgmtVCSA
 	} else {
 		Write-Log "NSX manager exists, skipping" -Warning
 	}
@@ -222,7 +226,7 @@ if($prepareHosts) {
 	$NSX = Connect-NSXServer -NsxServer $NSXConfig.nsx.manager.network.ip -Username "admin" -Password $NSXConfig.nsx.manager.adminpass -WarningAction SilentlyContinue
 	Write-Log "## Preparing hosts ##"
 	Write-Log "Initiating installation of NSX agents"
-	$clusterStatus = ($resCluster | Get-NsxClusterStatus | select -first 1).installed
+	$clusterStatus = ($resCluster | Get-NsxClusterStatus | Select-Object -first 1).installed
 	if($clusterStatus -eq "false") {
 		$resCluster | Install-NsxCluster -VxlanPrepTimeout 360 | Out-File -Append -LiteralPath $verboseLogFile
 	} else {
@@ -242,7 +246,7 @@ if($prepareHosts) {
 		Write-Log "VDS Context already configured, skipping" -Warning
 	}
 	Write-Log "Creating VXLAN configurations"
-	$vxlanStatus = (Get-NsxClusterStatus $resCluster | where {$_.featureId -eq "com.vmware.vshield.vsm.vxlan" }).status # | Out-File -Append -LiteralPath $verboseLogFile
+	$vxlanStatus = (Get-NsxClusterStatus $resCluster | Where-Object {$_.featureId -eq "com.vmware.vshield.vsm.vxlan" }).status # | Out-File -Append -LiteralPath $verboseLogFile
 	if($vxlanStatus -ne "GREEN") {
 		$resCluster | New-NsxClusterVxlanConfig -VirtualDistributedSwitch $resDistributedSwitch -ipPool (Get-NsxIpPool -Name $vtepPool.name) -VlanId $vtepPool.vlan | Out-File -Append -LiteralPath $verboseLogFile
 	} else {
@@ -281,11 +285,10 @@ if($deployComponents) {
 	Write-log "Creating Provider Logical Router Edge(s)"
 	foreach($plr in $NSXConfig.components.edges.plr) {
 		if($plr.interfaces[0]) {
-
-			$int0 = New-NsxEdgeinterfacespec -index 0 -Name  -type Uplink -ConnectedTo $EdgeUplinkNetwork -PrimaryAddress $EdgeUplinkPrimaryAddress -SecondaryAddress $EdgeUplinkSecondaryAddress -SubnetPrefixLength $DefaultSubnetBits
+			#$int0 = New-NsxEdgeinterfacespec -index 0 -Name  -type Uplink -ConnectedTo $EdgeUplinkNetwork -PrimaryAddress $EdgeUplinkPrimaryAddress -SecondaryAddress $EdgeUplinkSecondaryAddress -SubnetPrefixLength $DefaultSubnetBits
 		}
 		if($plr.interfaces[1]) {
-			$int1 = New-NsxEdgeinterfacespec -index 1 -Name  -type Uplink -ConnectedTo $EdgeUplinkNetwork -PrimaryAddress $EdgeUplinkPrimaryAddress -SecondaryAddress $EdgeUplinkSecondaryAddress -SubnetPrefixLength $DefaultSubnetBits
+			#$int1 = New-NsxEdgeinterfacespec -index 1 -Name  -type Uplink -ConnectedTo $EdgeUplinkNetwork -PrimaryAddress $EdgeUplinkPrimaryAddress -SecondaryAddress $EdgeUplinkSecondaryAddress -SubnetPrefixLength $DefaultSubnetBits
 		}
 	}
 }
