@@ -248,7 +248,7 @@ if($prepareHosts) {
 	Write-Log "Creating VXLAN configurations"
 	$vxlanStatus = (Get-NsxClusterStatus $resCluster | Where-Object {$_.featureId -eq "com.vmware.vshield.vsm.vxlan" }).status # | Out-File -Append -LiteralPath $verboseLogFile
 	if($vxlanStatus -ne "GREEN") {
-		$resCluster | New-NsxClusterVxlanConfig -VirtualDistributedSwitch $resDistributedSwitch -ipPool (Get-NsxIpPool -Name $vtepPool.name) -VlanId $vtepPool.vlan | Out-File -Append -LiteralPath $verboseLogFile
+		$resCluster | New-NsxClusterVxlanConfig -VirtualDistributedSwitch $resDistributedSwitch -ipPool (Get-NsxIpPool -Name $vtepPool.name) -VlanId $NSXConfig.nsx.vxlan.vlan | Out-File -Append -LiteralPath $verboseLogFile
 	} else {
 		Write-Log "VXLAN already configured, skipping" -Warning
 	}
